@@ -1,6 +1,6 @@
 {
   "name": "ai-team-docs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI-era cross-team documentation conventions: PRD hub + per-team tech specs, with strict source-of-truth boundaries and double-linking. Includes templates, npx scaffolding, and a Claude Code Skill.",
   "type": "module",
   "bin": {

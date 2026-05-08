@@ -15,6 +15,8 @@ const DOCS_DIR = path.join(PKG_ROOT, 'docs');
 const README_PATH = path.join(PKG_ROOT, 'README.md');
 const PKG_JSON_PATH = path.join(PKG_ROOT, 'package.json');
 
+const LINKS_FILE = '.ai-team-docs-links.json';
+
 const TEMPLATE_MAP = {
   prd: 'PRD.md',
   'tech-spec': 'tech-spec.md',
@@ -55,12 +57,17 @@ ${pkg.description}
 命令：
   methodology              打印方法论 README（推荐先读）
   docs                     列出方法论 docs
-  docs <name>              查看某篇 doc（methodology / why-ai-friendly / source-of-truth / cross-team-linking）
+  docs <name>              查看某篇 doc（methodology / why-ai-friendly / source-of-truth / cross-team-linking / sync-and-linking）
   list                     列出可用模板
   show <template>          查看模板内容（不写文件）
   init [target]            scaffold 模板到目标目录（默认 ./docs/）
        --type prd-hub|impl|all   默认 all
        --force                   覆盖已存在文件
+  links                    显示 links 子命令帮助
+  links init               在当前目录创建 .ai-team-docs-links.json
+  links list               列出当前 repo 的 wiki↔repo 链接清单
+  links show <id>          查看单条链接详情
+  links check              校验：repo 路径存在 + wiki URL 有效（不 fetch，仅格式校验）
   version                  显示版本
   help, --help, -h         显示本帮助
 
@@ -207,6 +214,159 @@ function cmdVersion() {
   console.log(`ai-team-docs v${pkg.version}`);
 }
 
+// ---------- links subcommands ----------
+
+function loadLinks() {
+  if (!fs.existsSync(LINKS_FILE)) {
+    console.error(`未找到 ${LINKS_FILE}（在当前目录）。`);
+    console.error(`先运行：ai-team-docs links init`);
+    process.exit(1);
+  }
+  try {
+    return JSON.parse(fs.readFileSync(LINKS_FILE, 'utf8'));
+  } catch (e) {
+    console.error(`${LINKS_FILE} JSON 解析失败：${e.message}`);
+    process.exit(1);
+  }
+}
+
+function cmdLinksHelp() {
+  console.log(`links 子命令：
+
+  ai-team-docs links init     在当前目录创建 .ai-team-docs-links.json（含示例条目）
+  ai-team-docs links list     列出所有链接（带 wiki URL + repo 路径）
+  ai-team-docs links show <id>  查看单条链接详情（JSON）
+  ai-team-docs links check    校验：repo 路径存在 + wiki URL 格式合法
+
+设计说明：
+  本命令只管理"地址关联"，不做内容同步。
+  Wiki 和 repo 各为不同内容的真相来源（详见 docs/source-of-truth）。
+  links.json 维护双向引用清单，CI 校验链接没腐烂。
+
+更多：ai-team-docs docs sync-and-linking
+`);
+}
+
+function cmdLinksInit() {
+  if (fs.existsSync(LINKS_FILE)) {
+    console.error(`${LINKS_FILE} 已存在。`);
+    console.error(`如需重建，先备份并删除原文件，再运行 init。`);
+    process.exit(1);
+  }
+  const starter = {
+    $schema: 'https://github.com/leeguooooo/ai-team-docs/blob/main/schema/links.schema.json',
+    version: 1,
+    description: 'Wiki ↔ Repo 链接清单。每条链接代表一个文档跨 wiki / repo 的双向引用关系。',
+    links: [
+      {
+        id: 'example-architecture',
+        title: '架构总览（示例条目，请替换或删除）',
+        wiki: 'https://YOUR_TENANT.larksuite.com/wiki/REPLACE_WITH_NODE_TOKEN',
+        repo: ['docs/ARCHITECTURE.md'],
+        notes: '可选注释',
+      },
+      {
+        id: 'example-adr',
+        title: 'ADR Log（示例）',
+        wiki: 'https://YOUR_TENANT.larksuite.com/wiki/REPLACE_WITH_NODE_TOKEN',
+        repo: null,
+      },
+    ],
+  };
+  fs.writeFileSync(LINKS_FILE, JSON.stringify(starter, null, 2) + '\n');
+  console.log(`✓ 创建 ${LINKS_FILE}`);
+  console.log('');
+  console.log('下一步：');
+  console.log('  1. 编辑该文件，填入实际的 wiki URL 和 repo 路径');
+  console.log('  2. 运行 `ai-team-docs links check` 校验');
+  console.log('  3. 把这个文件提交到 git，作为 wiki/repo 的桥梁');
+  console.log('  4. (建议) 在 CI 加一步 `ai-team-docs links check` 防腐烂');
+}
+
+function cmdLinksList() {
+  const cfg = loadLinks();
+  const links = cfg.links || [];
+  console.log(`共 ${links.length} 条链接：\n`);
+  for (const link of links) {
+    const repos = Array.isArray(link.repo) ? link.repo : link.repo ? [link.repo] : [];
+    console.log(`[${link.id}] ${link.title || ''}`);
+    if (link.wiki) console.log(`  wiki: ${link.wiki}`);
+    if (repos.length) console.log(`  repo: ${repos.join(', ')}`);
+    if (link.notes) console.log(`  note: ${link.notes}`);
+    console.log('');
+  }
+}
+
+function cmdLinksShow(id) {
+  if (!id) {
+    console.error('用法：ai-team-docs links show <id>');
+    process.exit(1);
+  }
+  const cfg = loadLinks();
+  const link = (cfg.links || []).find((l) => l.id === id);
+  if (!link) {
+    console.error(`未找到 link：${id}`);
+    process.exit(1);
+  }
+  console.log(JSON.stringify(link, null, 2));
+}
+
+function isLikelyValidWikiUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  if (url.includes('REPLACE_WITH_NODE_TOKEN')) return false;
+  // Basic shape: https://*.larksuite.com/wiki/<token> or feishu.cn/wiki/<token> or notion / confluence
+  try {
+    const u = new URL(url);
+    if (!u.protocol.startsWith('http')) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function cmdLinksCheck() {
+  const cfg = loadLinks();
+  const links = cfg.links || [];
+  console.log(`检查 ${links.length} 条链接（格式 + repo 路径存在）...\n`);
+  let pass = 0;
+  let fail = 0;
+  const seen = new Set();
+  for (const link of links) {
+    const errs = [];
+    if (!link.id) errs.push('missing id');
+    else if (seen.has(link.id)) errs.push(`duplicate id: ${link.id}`);
+    else seen.add(link.id);
+
+    if (!link.title) errs.push('missing title');
+
+    if (!isLikelyValidWikiUrl(link.wiki)) {
+      errs.push(`wiki URL invalid or unfilled: ${link.wiki || '(empty)'}`);
+    }
+
+    const repos = Array.isArray(link.repo) ? link.repo : link.repo ? [link.repo] : [];
+    for (const r of repos) {
+      if (!fs.existsSync(r)) {
+        errs.push(`repo path missing: ${r}`);
+      }
+    }
+
+    if (errs.length) {
+      console.log(`✗ [${link.id || '?'}] ${link.title || ''}`);
+      for (const e of errs) console.log(`    - ${e}`);
+      fail++;
+    } else {
+      console.log(`✓ [${link.id}] ${link.title}`);
+      pass++;
+    }
+  }
+  console.log(`\nPass: ${pass} / Fail: ${fail}`);
+  if (fail > 0) {
+    console.log('\n提示：本命令仅校验本地路径与 URL 格式，不会主动 fetch wiki 验证存在。');
+    console.log('要校验 wiki 真的可访问，运行 lark-cli wiki spaces get_node 等命令。');
+  }
+  process.exit(fail > 0 ? 1 : 0);
+}
+
 function die(msg) {
   console.error('Error: ' + msg);
   process.exit(1);
@@ -265,6 +425,25 @@ function main() {
     case 'init':
       cmdInit(args);
       break;
+    case 'links': {
+      const sub = rest[0];
+      if (!sub || sub === 'help' || sub === '--help' || sub === '-h') {
+        cmdLinksHelp();
+      } else if (sub === 'init') {
+        cmdLinksInit();
+      } else if (sub === 'list') {
+        cmdLinksList();
+      } else if (sub === 'show') {
+        cmdLinksShow(rest[1]);
+      } else if (sub === 'check') {
+        cmdLinksCheck();
+      } else {
+        console.error(`未知 links 子命令：${sub}\n`);
+        cmdLinksHelp();
+        process.exit(1);
+      }
+      break;
+    }
     default:
       console.error(`未知命令：${cmd}\n`);
       process.stdout.write(help());

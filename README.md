@@ -155,18 +155,58 @@ ops/              ← 运维实战
 # 总览
 <atd> --help
 
-# 命令
+# 内容（方法论 + 模板）
 <atd> methodology               # 打印方法论 README
 <atd> docs                      # 列出方法论文档
 <atd> docs <name>               # 查看某篇方法论（如 docs why-ai-friendly）
 <atd> list                      # 列出可用模板
 <atd> show <name>               # 查看单个模板（如 show prd / show tech-spec）
+
+# scaffold
 <atd> init [target]             # scaffold 模板到目标目录（默认 ./docs/）
 <atd> init --type prd-hub       # 只生成 PRD Hub 结构
 <atd> init --type impl          # 只生成单端实现方案 wiki 结构
 <atd> init --type all           # 生成两套（默认）
 <atd> init --force              # 覆盖已存在文件
+
+# Wiki ↔ Repo 链接管理
+<atd> links init                # 在当前 repo 创建 .ai-team-docs-links.json
+<atd> links list                # 列出所有链接
+<atd> links show <id>           # 查看单条链接
+<atd> links check               # 校验：repo 路径存在 + wiki URL 格式合法
 ```
+
+## Wiki ↔ Repo 链接管理
+
+**问题**：Wiki 写决策（PRD / ADR / 技术方案），Repo 写代码 / 真相（OpenAPI / model）。两边怎么相互引用？
+
+**答案**：维护一个 `.ai-team-docs-links.json` 清单，每条登记一个文档的 wiki URL + 对应的 repo 路径。**只关联，不同步**——避免双向同步坑（详见 [docs/sync-and-linking.md](docs/sync-and-linking.md)）。
+
+```bash
+<atd> links init                # 创建初始 .ai-team-docs-links.json
+# 编辑文件，登记现有的 wiki ↔ repo 关系
+<atd> links check               # 校验所有链接
+
+# CI 中加一步防腐烂
+<atd> links check
+```
+
+清单格式：
+```json
+{
+  "version": 1,
+  "links": [
+    {
+      "id": "arch-overview",
+      "title": "架构总览",
+      "wiki": "https://your-tenant.larksuite.com/wiki/<node_token>",
+      "repo": ["docs/ARCHITECTURE.md"]
+    }
+  ]
+}
+```
+
+详细说明：[docs/sync-and-linking.md](docs/sync-and-linking.md)
 
 ## 与 Claude Code 集成
 
