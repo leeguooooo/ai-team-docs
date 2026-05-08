@@ -1,6 +1,6 @@
 {
   "name": "ai-team-docs",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "AI-era cross-team documentation conventions: PRD hub + per-team tech specs, with strict source-of-truth boundaries and double-linking. Includes templates, npx scaffolding, and a Claude Code Skill.",
   "type": "module",
   "bin": {
@@ -12,12 +12,14 @@
     "templates",
     "docs",
     "skill",
+    "schema",
     "examples",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
-    "test": "node bin/cli.mjs --help && node bin/cli.mjs list"
+    "test": "node tests/run.mjs"
   },
   "keywords": [
     "prd",

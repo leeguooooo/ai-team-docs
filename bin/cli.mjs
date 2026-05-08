@@ -216,16 +216,36 @@ function cmdVersion() {
 
 // ---------- links subcommands ----------
 
+function findLinksFile(startDir = process.cwd()) {
+  // Walk up parent dirs looking for .ai-team-docs-links.json (until git root or filesystem root)
+  let dir = path.resolve(startDir);
+  const root = path.parse(dir).root;
+  while (true) {
+    const candidate = path.join(dir, LINKS_FILE);
+    if (fs.existsSync(candidate)) return candidate;
+    // Stop at git root (don't escape into parent project)
+    if (fs.existsSync(path.join(dir, '.git'))) break;
+    if (dir === root) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
 function loadLinks() {
-  if (!fs.existsSync(LINKS_FILE)) {
-    console.error(`未找到 ${LINKS_FILE}（在当前目录）。`);
+  const file = findLinksFile();
+  if (!file) {
+    console.error(`未找到 ${LINKS_FILE}（在当前目录及其父目录中）。`);
     console.error(`先运行：ai-team-docs links init`);
     process.exit(1);
   }
   try {
-    return JSON.parse(fs.readFileSync(LINKS_FILE, 'utf8'));
+    const cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
+    cfg._file = file; // attach for downstream relative-path resolution
+    return cfg;
   } catch (e) {
-    console.error(`${LINKS_FILE} JSON 解析失败：${e.message}`);
+    console.error(`${file} JSON 解析失败：${e.message}`);
     process.exit(1);
   }
 }
@@ -254,7 +274,7 @@ function cmdLinksInit() {
     process.exit(1);
   }
   const starter = {
-    $schema: 'https://github.com/leeguooooo/ai-team-docs/blob/main/schema/links.schema.json',
+    $schema: 'https://raw.githubusercontent.com/leeguooooo/ai-team-docs/main/schema/links.schema.json',
     version: 1,
     description: 'Wiki ↔ Repo 链接清单。每条链接代表一个文档跨 wiki / repo 的双向引用关系。',
     links: [
@@ -283,9 +303,13 @@ function cmdLinksInit() {
   console.log('  4. (建议) 在 CI 加一步 `ai-team-docs links check` 防腐烂');
 }
 
-function cmdLinksList() {
+function cmdLinksList(args) {
   const cfg = loadLinks();
   const links = cfg.links || [];
+  if (args.json) {
+    process.stdout.write(JSON.stringify({ count: links.length, links }, null, 2) + '\n');
+    return;
+  }
   console.log(`共 ${links.length} 条链接：\n`);
   for (const link of links) {
     const repos = Array.isArray(link.repo) ? link.repo : link.repo ? [link.repo] : [];
@@ -311,36 +335,60 @@ function cmdLinksShow(id) {
   console.log(JSON.stringify(link, null, 2));
 }
 
-function isLikelyValidWikiUrl(url) {
-  if (!url || typeof url !== 'string') return false;
-  if (url.includes('REPLACE_WITH_NODE_TOKEN')) return false;
-  // Basic shape: https://*.larksuite.com/wiki/<token> or feishu.cn/wiki/<token> or notion / confluence
-  try {
-    const u = new URL(url);
-    if (!u.protocol.startsWith('http')) return false;
-    return true;
-  } catch {
-    return false;
+// Known wiki URL patterns. URLs not matching any → flagged as "unrecognized" (warning, not error).
+const WIKI_URL_PATTERNS = [
+  /^https:\/\/[^/]+\.larksuite\.com\/wiki\/[A-Za-z0-9]+/, // Lark international
+  /^https:\/\/[^/]+\.feishu\.cn\/wiki\/[A-Za-z0-9]+/, // Feishu CN
+  /^https:\/\/[^/]+\.notion\.so\//, // Notion
+  /^https:\/\/[^/]+\.notion\.site\//, // Notion public
+  /^https:\/\/[^/]+\.atlassian\.net\/wiki\//, // Confluence
+  /^https:\/\/github\.com\/[^/]+\/[^/]+\/(wiki|blob|tree)\//, // GitHub wiki / docs
+];
+
+function classifyWikiUrl(url) {
+  if (!url || typeof url !== 'string') return { ok: false, reason: 'empty' };
+  if (url.includes('REPLACE_WITH_NODE_TOKEN') || url.includes('YOUR_TENANT')) {
+    return { ok: false, reason: 'unfilled placeholder' };
   }
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, reason: 'not a valid URL' };
+  }
+  if (!parsed.protocol.startsWith('http')) {
+    return { ok: false, reason: 'protocol must be http(s)' };
+  }
+  for (const re of WIKI_URL_PATTERNS) {
+    if (re.test(url)) return { ok: true, recognized: true };
+  }
+  return { ok: true, recognized: false }; // accept but warn
 }
 
-function cmdLinksCheck() {
+function cmdLinksCheck(args) {
   const cfg = loadLinks();
   const links = cfg.links || [];
-  console.log(`检查 ${links.length} 条链接（格式 + repo 路径存在）...\n`);
+  const json = !!args.json;
+  const results = [];
   let pass = 0;
   let fail = 0;
+  let warn = 0;
   const seen = new Set();
   for (const link of links) {
     const errs = [];
+    const warnings = [];
+
     if (!link.id) errs.push('missing id');
     else if (seen.has(link.id)) errs.push(`duplicate id: ${link.id}`);
     else seen.add(link.id);
 
     if (!link.title) errs.push('missing title');
 
-    if (!isLikelyValidWikiUrl(link.wiki)) {
-      errs.push(`wiki URL invalid or unfilled: ${link.wiki || '(empty)'}`);
+    const cls = classifyWikiUrl(link.wiki);
+    if (!cls.ok) {
+      errs.push(`wiki URL ${cls.reason}: ${link.wiki || '(empty)'}`);
+    } else if (!cls.recognized) {
+      warnings.push(`wiki URL accepted but not a recognized wiki/notion/confluence/github pattern: ${link.wiki}`);
     }
 
     const repos = Array.isArray(link.repo) ? link.repo : link.repo ? [link.repo] : [];
@@ -350,16 +398,28 @@ function cmdLinksCheck() {
       }
     }
 
-    if (errs.length) {
-      console.log(`✗ [${link.id || '?'}] ${link.title || ''}`);
-      for (const e of errs) console.log(`    - ${e}`);
-      fail++;
-    } else {
-      console.log(`✓ [${link.id}] ${link.title}`);
-      pass++;
-    }
+    const status = errs.length ? 'fail' : warnings.length ? 'warn' : 'pass';
+    if (status === 'fail') fail++;
+    else if (status === 'warn') warn++;
+    else pass++;
+    results.push({ id: link.id, title: link.title, status, errors: errs, warnings });
   }
-  console.log(`\nPass: ${pass} / Fail: ${fail}`);
+
+  if (json) {
+    process.stdout.write(
+      JSON.stringify({ summary: { pass, warn, fail, total: links.length }, results }, null, 2) + '\n'
+    );
+    process.exit(fail > 0 ? 1 : 0);
+  }
+
+  console.log(`检查 ${links.length} 条链接（格式 + repo 路径存在）...\n`);
+  for (const r of results) {
+    const icon = r.status === 'fail' ? '✗' : r.status === 'warn' ? '⚠' : '✓';
+    console.log(`${icon} [${r.id || '?'}] ${r.title || ''}`);
+    for (const e of r.errors) console.log(`    - ERROR: ${e}`);
+    for (const w of r.warnings) console.log(`    - WARN: ${w}`);
+  }
+  console.log(`\nPass: ${pass} / Warn: ${warn} / Fail: ${fail}`);
   if (fail > 0) {
     console.log('\n提示：本命令仅校验本地路径与 URL 格式，不会主动 fetch wiki 验证存在。');
     console.log('要校验 wiki 真的可访问，运行 lark-cli wiki spaces get_node 等命令。');
@@ -377,16 +437,28 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith('--')) {
+      // Support --key=value (Unix standard) AND --key value
+      const eqIdx = a.indexOf('=');
+      if (eqIdx > 2) {
+        out[a.slice(2, eqIdx)] = a.slice(eqIdx + 1);
+        continue;
+      }
       const key = a.slice(2);
       const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
+      if (next !== undefined && !next.startsWith('-')) {
         out[key] = next;
         i++;
       } else {
         out[key] = true;
       }
-    } else if (a.startsWith('-') && a.length > 1) {
-      out[a.slice(1)] = true;
+    } else if (a.startsWith('-') && a.length > 1 && !/^-?\d/.test(a)) {
+      // Short flag (skip negative numbers)
+      const eqIdx = a.indexOf('=');
+      if (eqIdx > 1) {
+        out[a.slice(1, eqIdx)] = a.slice(eqIdx + 1);
+      } else {
+        out[a.slice(1)] = true;
+      }
     } else {
       out._.push(a);
     }
@@ -432,11 +504,11 @@ function main() {
       } else if (sub === 'init') {
         cmdLinksInit();
       } else if (sub === 'list') {
-        cmdLinksList();
+        cmdLinksList(parseArgs(rest.slice(1)));
       } else if (sub === 'show') {
         cmdLinksShow(rest[1]);
       } else if (sub === 'check') {
-        cmdLinksCheck();
+        cmdLinksCheck(parseArgs(rest.slice(1)));
       } else {
         console.error(`未知 links 子命令：${sub}\n`);
         cmdLinksHelp();
