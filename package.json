@@ -1,6 +1,6 @@
 {
   "name": "ai-team-docs",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "AI-era cross-team documentation conventions: PRD hub + per-team tech specs, with strict source-of-truth boundaries and double-linking. Includes templates, npx scaffolding, and a Claude Code Skill.",
   "type": "module",
   "bin": {
@@ -25,15 +25,22 @@
     "prd",
     "tech-spec",
     "documentation",
+    "doc-methodology",
+    "cross-team",
+    "wiki-linking",
+    "source-of-truth",
+    "prd-hub",
     "wiki",
     "claude-code",
     "ai-agent",
     "lark",
     "feishu",
     "notion",
+    "confluence",
     "starter",
     "scaffold",
-    "templates"
+    "templates",
+    "adr"
   ],
   "author": "leeguooooo",
   "license": "MIT",

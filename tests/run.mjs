@@ -271,6 +271,30 @@ test('JSON schema file exists and is valid JSON', () => {
   assert.equal(schema.title, 'ai-team-docs Wiki ↔ Repo Links Manifest');
 });
 
+test('links check resolves repo paths relative to manifest dir, not CWD', () => {
+  // Regression test: previously `fs.existsSync(r)` used CWD, so running from
+  // a subdirectory caused all repo path checks to false-positive fail.
+  const dir = tmpDir();
+  fs.writeFileSync(path.join(dir, 'README.md'), '# project root file');
+  fs.writeFileSync(path.join(dir, '.ai-team-docs-links.json'), JSON.stringify({
+    version: 1,
+    links: [{ id: 'r', title: 'Root file', wiki: 'https://example.larksuite.com/wiki/abc', repo: ['README.md'] }],
+  }));
+  const sub = path.join(dir, 'a', 'b', 'c');
+  fs.mkdirSync(sub, { recursive: true });
+  // Run from subdirectory — CWD is `sub`, but README.md lives in manifest dir.
+  const r = run(['links', 'check'], { cwd: sub });
+  assert.equal(r.status, 0, `expected pass; CWD-based path check would falsely fail. stdout:\n${r.stdout}\nstderr:\n${r.stderr}`);
+  assert.match(r.stdout, /Pass: 1/);
+});
+
+test('examples/ directory is non-empty (no dead doc links)', () => {
+  const examplesDir = path.resolve(__dirname, '..', 'examples');
+  assert.ok(fs.existsSync(examplesDir), 'examples/ must exist (referenced by docs/methodology.md and package.json files)');
+  const entries = fs.readdirSync(examplesDir).filter((f) => !f.startsWith('.'));
+  assert.ok(entries.length > 0, `examples/ must contain at least one file; got ${entries.length}`);
+});
+
 // --- summary ---
 console.log(`\n${pass + fail} tests, ${pass} passed, ${fail} failed`);
 if (fail > 0) {

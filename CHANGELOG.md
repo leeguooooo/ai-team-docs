@@ -4,6 +4,32 @@ ai-team-docs follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-08
+
+第二轮独立 review 修复（codex agent 投递的 8 条反馈）。
+
+### Fixed
+- **`links check` 路径解析 bug**（HIGH）：`fs.existsSync(r)` 之前用 CWD 解析 repo 路径，子目录运行 `links check` 会 false-positive 全失败。改为相对 manifest 文件所在目录解析。加了回归测试。
+- **空的 `examples/` + 文档死链**（HIGH）：`package.json` `files` 字段含 `examples`、`docs/methodology.md` 引用 `examples/` 却为空目录。补上 4 个真实脱敏示例（PRD / 技术方案 / ADR / 表设计）+ examples README。
+
+### Improved
+- **核心论点澄清**：之前过度强调"AI 友好 = 扁平"，被指出在大型项目反噬。`docs/why-ai-friendly.md` 新增"关于扁平的边界"段，明确**自包含是核心，扁平是手段**，并给出小/中/大型项目的渐进路径。
+- **小团队豁免**：`docs/methodology.md` 新增小团队（1-2 人 / 单端项目 / PM 工程师混合）的简化路径——不分 PRD Hub 和实现方案 wiki。但 source-of-truth / 状态前缀 / ADR 追加 这 3 条铁律即使一个人也要遵守。
+- **SKILL trigger 收窄**：之前的描述被任何"怎么写文档"对话都可能误激活。改为强信号词：明确请求 ai-team-docs scaffolding / PRD Hub setup / cross-team wiki / source-of-truth methodology 才触发。
+- **README quick start 重排**：之前的"30 秒快速开始"实际不到 30 秒就被 README 全文 dump 淹没。改为"5 分钟上手"，第一步 `show prd` 立即感受价值，第四步才 `methodology`（可选深读）。
+- **package.json keywords**：补充差异化词（`doc-methodology` / `cross-team` / `wiki-linking` / `source-of-truth` / `prd-hub` / `confluence` / `adr`），改善 npm 搜索发现性。
+
+### Added
+- `examples/` 目录：4 个脱敏真实示例 + 索引 README
+  - `example-prd-room-classification.md` — 完整 PRD
+  - `example-tech-spec-room-classification.md` — 对应技术方案（演示双向链接）
+  - `example-adr-multi-tenant-pk.md` — ADR 单条
+  - `example-table-rooms.md` — 表设计（演示链回 repo 而非复制 schema）
+- 2 条新回归测试（manifest dir 路径解析、examples 非空）
+
+### Notes
+- `parseArgs` 对 `--key VALUE` 后跟已知命令关键字的歧义（如 `--type show`）暂未结构化修复——靠 cmdInit 的 enum 校验兜底。已在代码注释中标明设计取舍。
+
 ## [0.2.1] - 2026-05-08
 
 ### Fixed

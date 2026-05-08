@@ -369,6 +369,9 @@ function cmdLinksCheck(args) {
   const cfg = loadLinks();
   const links = cfg.links || [];
   const json = !!args.json;
+  // Resolve repo paths relative to the manifest's directory, NOT cwd.
+  // Otherwise users running `links check` from a subdirectory get false-positive failures.
+  const manifestDir = cfg._file ? path.dirname(cfg._file) : process.cwd();
   const results = [];
   let pass = 0;
   let fail = 0;
@@ -393,7 +396,8 @@ function cmdLinksCheck(args) {
 
     const repos = Array.isArray(link.repo) ? link.repo : link.repo ? [link.repo] : [];
     for (const r of repos) {
-      if (!fs.existsSync(r)) {
+      const absR = path.resolve(manifestDir, r);
+      if (!fs.existsSync(absR)) {
         errs.push(`repo path missing: ${r}`);
       }
     }
@@ -432,6 +436,11 @@ function die(msg) {
   process.exit(1);
 }
 
+// Plain argv parser. Known limitation: `--key VALUE` greedily consumes the next
+// token as VALUE if it doesn't start with `-`. So `--type show` parses as
+// {type: "show"} even though `show` could be a subcommand. Mitigation: callers
+// should validate against an enum (see cmdInit's type check). Use `--key=value`
+// to be unambiguous.
 function parseArgs(argv) {
   const out = { _: [] };
   for (let i = 0; i < argv.length; i++) {

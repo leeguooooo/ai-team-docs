@@ -23,19 +23,23 @@
 - 🤖 **CLI 工具**：`npx ai-team-docs init` 一键 scaffold 到你的 repo
 - 🧠 **Claude Code Skill**：让 Claude 按这套规范帮你写/管文档
 
-## 30 秒快速开始
+## 5 分钟上手
 
 **当前从 GitHub 源使用**（无需 npm 发布）：
 
 ```bash
-# 看方法论
-npx -y github:leeguooooo/ai-team-docs methodology
-
-# 看 PRD 模板长什么样
+# 1. 看一眼模板（立即感受价值，不到 10 秒）
 npx -y github:leeguooooo/ai-team-docs show prd
 
-# 把模板 scaffold 到当前 repo 的 docs/ 目录
-npx -y github:leeguooooo/ai-team-docs init
+# 2. scaffold 到本地项目的 ./docs/
+npx -y github:leeguooooo/ai-team-docs init my-project
+
+# 3. 看真实示例怎么填的
+ls examples/        # 在仓库里
+# 或在线浏览：https://github.com/leeguooooo/ai-team-docs/tree/main/examples
+
+# 4. 想读完整方法论再上车
+npx -y github:leeguooooo/ai-team-docs methodology
 ```
 
 > 嫌长？设个 alias：`alias atd='npx -y github:leeguooooo/ai-team-docs'`，之后 `atd init` 即可。

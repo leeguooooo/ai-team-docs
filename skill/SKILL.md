@@ -1,6 +1,6 @@
 ---
 name: ai-team-docs
-description: AI 时代跨团队文档规范。当用户需要为项目建立 PRD 库、技术方案文档、跨端协作 wiki、或想引入"按业务单元组织 + Source-of-Truth 边界 + 双向链接"的文档治理时使用。覆盖建立 PRD Hub、各端实现方案 wiki、模板（PRD/技术方案/ADR/表设计/术语表）、跨工具适配（Lark/飞书/Notion/Confluence/本地 markdown）。Use when user mentions setup project docs, PRD template, tech spec template, wiki structure, cross-team documentation, AI-friendly docs, source of truth, 文档规范, 建 wiki, PRD 模板, 技术方案模板, 知识库结构.
+description: ai-team-docs 跨团队文档规范的应用 skill —— PRD Hub + 各端实现方案 wiki + 双向链接 + Source-of-Truth 边界。当用户明确需要建立 PRD 库 / 技术方案 wiki 结构、复制本规范的模板（PRD / 技术方案 / ADR / 表设计 / 术语表）、按本规范迁移已有文档、或在 Lark/Notion/Confluence 中按本规范建空间时使用。Use when user explicitly requests ai-team-docs scaffolding, PRD Hub setup, cross-team wiki structure with bidirectional linking, or wants to apply the source-of-truth methodology to organize project docs. Do NOT trigger on generic "how to write docs" / "code comment style" / "API doc tooling" questions — only when user wants this specific cross-team methodology.
 ---
 
 # ai-team-docs
