@@ -25,15 +25,31 @@
 
 ## 30 秒快速开始
 
+**当前从 GitHub 源使用**（无需 npm 发布）：
+
 ```bash
 # 看方法论
-npx ai-team-docs methodology
+npx -y github:leeguooooo/ai-team-docs methodology
 
 # 看 PRD 模板长什么样
-npx ai-team-docs show prd
+npx -y github:leeguooooo/ai-team-docs show prd
 
 # 把模板 scaffold 到当前 repo 的 docs/ 目录
-npx ai-team-docs init
+npx -y github:leeguooooo/ai-team-docs init
+```
+
+> 嫌长？设个 alias：`alias atd='npx -y github:leeguooooo/ai-team-docs'`，之后 `atd init` 即可。
+
+**未来**（发布到 npm registry 后）：
+
+```bash
+npx ai-team-docs methodology    # 同等效果，命令更短
+```
+
+锁定版本：
+```bash
+npx -y github:leeguooooo/ai-team-docs#v0.1.0 init   # 锁标签
+npx -y github:leeguooooo/ai-team-docs#abc1234 init  # 锁 commit SHA
 ```
 
 ## 核心方法论（5 条铁律）
@@ -133,18 +149,23 @@ ops/              ← 运维实战
 
 ## CLI 用法
 
+> 下文用短形式 `<atd>` 代表 `npx -y github:leeguooooo/ai-team-docs`（GitHub 源）或 `npx ai-team-docs`（npm 源，发布后）。
+
 ```bash
 # 总览
-npx ai-team-docs --help
+<atd> --help
 
 # 命令
-npx ai-team-docs methodology       # 打印方法论 README
-npx ai-team-docs list              # 列出可用模板
-npx ai-team-docs show <name>       # 查看单个模板（如 show prd / show tech-spec）
-npx ai-team-docs init [target]     # scaffold 模板到目标目录（默认 ./docs/）
-npx ai-team-docs init --type prd-hub    # 只生成 PRD Hub 结构
-npx ai-team-docs init --type impl       # 只生成单端实现方案 wiki 结构
-npx ai-team-docs init --type all        # 生成两套（默认）
+<atd> methodology               # 打印方法论 README
+<atd> docs                      # 列出方法论文档
+<atd> docs <name>               # 查看某篇方法论（如 docs why-ai-friendly）
+<atd> list                      # 列出可用模板
+<atd> show <name>               # 查看单个模板（如 show prd / show tech-spec）
+<atd> init [target]             # scaffold 模板到目标目录（默认 ./docs/）
+<atd> init --type prd-hub       # 只生成 PRD Hub 结构
+<atd> init --type impl          # 只生成单端实现方案 wiki 结构
+<atd> init --type all           # 生成两套（默认）
+<atd> init --force              # 覆盖已存在文件
 ```
 
 ## 与 Claude Code 集成
