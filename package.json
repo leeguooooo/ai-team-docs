@@ -1,0 +1,49 @@
+{
+  "name": "ai-team-docs",
+  "version": "0.1.0",
+  "description": "AI-era cross-team documentation conventions: PRD hub + per-team tech specs, with strict source-of-truth boundaries and double-linking. Includes templates, npx scaffolding, and a Claude Code Skill.",
+  "type": "module",
+  "bin": {
+    "ai-team-docs": "./bin/cli.mjs"
+  },
+  "main": "./bin/cli.mjs",
+  "files": [
+    "bin",
+    "templates",
+    "docs",
+    "skill",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node bin/cli.mjs --help && node bin/cli.mjs list"
+  },
+  "keywords": [
+    "prd",
+    "tech-spec",
+    "documentation",
+    "wiki",
+    "claude-code",
+    "ai-agent",
+    "lark",
+    "feishu",
+    "notion",
+    "starter",
+    "scaffold",
+    "templates"
+  ],
+  "author": "leeguooooo",
+  "license": "MIT",
+  "homepage": "https://github.com/leeguooooo/ai-team-docs#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leeguooooo/ai-team-docs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/leeguooooo/ai-team-docs/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

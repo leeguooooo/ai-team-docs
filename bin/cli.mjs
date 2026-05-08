@@ -1,0 +1,275 @@
+#!/usr/bin/env node
+// ai-team-docs CLI — zero-dep, Node 18+, ESM.
+// AI-era cross-team documentation conventions.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PKG_ROOT = path.resolve(__dirname, '..');
+
+const TEMPLATES_DIR = path.join(PKG_ROOT, 'templates');
+const DOCS_DIR = path.join(PKG_ROOT, 'docs');
+const README_PATH = path.join(PKG_ROOT, 'README.md');
+const PKG_JSON_PATH = path.join(PKG_ROOT, 'package.json');
+
+const TEMPLATE_MAP = {
+  prd: 'PRD.md',
+  'tech-spec': 'tech-spec.md',
+  spec: 'tech-spec.md',
+  adr: 'ADR.md',
+  table: 'table-design.md',
+  'table-design': 'table-design.md',
+  glossary: 'glossary.md',
+  architecture: 'architecture-overview.md',
+  'arch-overview': 'architecture-overview.md',
+  'readme-prd-hub': 'README-prd-hub.md',
+  'readme-impl': 'README-impl-wiki.md',
+};
+
+const TEMPLATE_DESCRIPTIONS = {
+  prd: 'PRD（产品需求文档）模板',
+  'tech-spec': '技术方案（实现方案）模板',
+  adr: 'ADR Log（架构决策日志）模板',
+  table: '数据库表设计模板',
+  glossary: '术语表模板',
+  architecture: '架构总览模板',
+  'readme-prd-hub': 'PRD Hub 根 README',
+  'readme-impl': '实现方案 wiki 根 README',
+};
+
+function readPkg() {
+  return JSON.parse(fs.readFileSync(PKG_JSON_PATH, 'utf8'));
+}
+
+function help() {
+  const pkg = readPkg();
+  return `ai-team-docs v${pkg.version}
+${pkg.description}
+
+用法：
+  ai-team-docs <command> [options]
+
+命令：
+  methodology              打印方法论 README（推荐先读）
+  docs                     列出方法论 docs
+  docs <name>              查看某篇 doc（methodology / why-ai-friendly / source-of-truth / cross-team-linking）
+  list                     列出可用模板
+  show <template>          查看模板内容（不写文件）
+  init [target]            scaffold 模板到目标目录（默认 ./docs/）
+       --type prd-hub|impl|all   默认 all
+       --force                   覆盖已存在文件
+  version                  显示版本
+  help, --help, -h         显示本帮助
+
+模板 short name：
+  ${Object.keys(TEMPLATE_DESCRIPTIONS).map((k) => `  ${k.padEnd(20)} ${TEMPLATE_DESCRIPTIONS[k]}`).join('\n  ')}
+
+示例：
+  npx ai-team-docs methodology               # 看方法论
+  npx ai-team-docs docs why-ai-friendly      # 看为什么扁平结构
+  npx ai-team-docs show prd                  # 看 PRD 模板
+  npx ai-team-docs init                      # scaffold 到 ./docs/
+  npx ai-team-docs init my-project --type impl   # 只生成单端实现方案结构
+
+更多文档：https://github.com/leeguooooo/ai-team-docs
+`;
+}
+
+function cmdMethodology() {
+  if (!fs.existsSync(README_PATH)) die(`README.md not found at ${README_PATH}`);
+  process.stdout.write(fs.readFileSync(README_PATH, 'utf8'));
+}
+
+function listDocs() {
+  if (!fs.existsSync(DOCS_DIR)) die('docs/ not found in package');
+  const files = fs.readdirSync(DOCS_DIR).filter((f) => f.endsWith('.md'));
+  console.log('方法论文档（npx ai-team-docs docs <name>）：');
+  for (const f of files) console.log(`  ${f.replace(/\.md$/, '')}`);
+}
+
+function cmdDocs(name) {
+  if (!name) return listDocs();
+  const file = path.join(DOCS_DIR, `${name}.md`);
+  if (!fs.existsSync(file)) {
+    console.error(`未找到 doc: ${name}`);
+    listDocs();
+    process.exit(1);
+  }
+  process.stdout.write(fs.readFileSync(file, 'utf8'));
+}
+
+function cmdList() {
+  console.log('可用模板（npx ai-team-docs show <name>）：\n');
+  for (const [name, desc] of Object.entries(TEMPLATE_DESCRIPTIONS)) {
+    const filename = TEMPLATE_MAP[name];
+    console.log(`  ${name.padEnd(18)} ${desc}`);
+    console.log(`  ${''.padEnd(18)} → templates/${filename}\n`);
+  }
+}
+
+function cmdShow(name) {
+  if (!name) {
+    console.error('错误：缺少模板名。');
+    cmdList();
+    process.exit(1);
+  }
+  const filename = TEMPLATE_MAP[name];
+  if (!filename) {
+    console.error(`未知模板：${name}`);
+    cmdList();
+    process.exit(1);
+  }
+  const file = path.join(TEMPLATES_DIR, filename);
+  process.stdout.write(fs.readFileSync(file, 'utf8'));
+}
+
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
+}
+
+function copyTemplate(srcName, destPath, force) {
+  const src = path.join(TEMPLATES_DIR, srcName);
+  if (!fs.existsSync(src)) die(`source template missing: ${src}`);
+  if (fs.existsSync(destPath) && !force) {
+    console.log(`  ⏭  skip (exists): ${path.relative(process.cwd(), destPath)}`);
+    return false;
+  }
+  ensureDir(path.dirname(destPath));
+  fs.copyFileSync(src, destPath);
+  console.log(`  ✓  ${path.relative(process.cwd(), destPath)}`);
+  return true;
+}
+
+function cmdInit(args) {
+  const target = args._[0] || 'docs';
+  const type = args.type || 'all';
+  const force = !!args.force;
+
+  const targetAbs = path.resolve(process.cwd(), target);
+  console.log(`Scaffolding ai-team-docs (type=${type}) to: ${targetAbs}\n`);
+
+  if (!['all', 'prd-hub', 'impl'].includes(type)) {
+    console.error(`未知 --type: ${type} (允许：all | prd-hub | impl)`);
+    process.exit(1);
+  }
+
+  let written = 0;
+  let skipped = 0;
+  const tally = (ok) => (ok ? written++ : skipped++);
+
+  if (type === 'all' || type === 'prd-hub') {
+    const dir = type === 'all' ? path.join(targetAbs, 'prd-hub') : targetAbs;
+    console.log(`PRD Hub → ${path.relative(process.cwd(), dir)}/`);
+    tally(copyTemplate('README-prd-hub.md', path.join(dir, 'README.md'), force));
+    tally(copyTemplate('PRD.md', path.join(dir, '_PRD-template.md'), force));
+    console.log('');
+  }
+
+  if (type === 'all' || type === 'impl') {
+    const dir = type === 'all' ? path.join(targetAbs, 'impl-wiki') : targetAbs;
+    console.log(`Implementation wiki → ${path.relative(process.cwd(), dir)}/`);
+    tally(copyTemplate('README-impl-wiki.md', path.join(dir, 'README.md'), force));
+    // features/
+    tally(copyTemplate('tech-spec.md', path.join(dir, 'features', '_tech-spec-template.md'), force));
+    fs.writeFileSync(path.join(dir, 'features', '.gitkeep'), '');
+    // reference/
+    tally(copyTemplate('glossary.md', path.join(dir, 'reference', 'glossary.md'), force));
+    tally(copyTemplate('architecture-overview.md', path.join(dir, 'reference', 'architecture-overview.md'), force));
+    tally(copyTemplate('ADR.md', path.join(dir, 'reference', 'ADR-Log.md'), force));
+    // tables/
+    tally(copyTemplate('table-design.md', path.join(dir, 'reference', 'tables', '_table-design-template.md'), force));
+    fs.writeFileSync(path.join(dir, 'reference', 'tables', '.gitkeep'), '');
+    // ops/
+    ensureDir(path.join(dir, 'ops'));
+    fs.writeFileSync(path.join(dir, 'ops', '.gitkeep'), '');
+    fs.writeFileSync(
+      path.join(dir, 'ops', 'README.md'),
+      `# ops\n\n按需在此目录加：\n- 环境与部署\n- Dashboard & Runbook 链接\n- 发布记录\n- 故障复盘（一次故障一篇）\n`
+    );
+    console.log(`  ✓  ${path.relative(process.cwd(), path.join(dir, 'ops', 'README.md'))}`);
+    written++;
+    console.log('');
+  }
+
+  console.log(`完成：${written} 个文件创建，${skipped} 个跳过（已存在；用 --force 覆盖）`);
+  console.log('\n下一步：');
+  console.log('  1. cd ' + path.relative(process.cwd(), targetAbs));
+  console.log('  2. 阅读 README.md 了解协作规则');
+  console.log('  3. 复制 _PRD-template.md / _tech-spec-template.md 创建第一篇文档');
+  console.log('  4. (可选) npx ai-team-docs methodology  查看完整方法论');
+}
+
+function cmdVersion() {
+  const pkg = readPkg();
+  console.log(`ai-team-docs v${pkg.version}`);
+}
+
+function die(msg) {
+  console.error('Error: ' + msg);
+  process.exit(1);
+}
+
+function parseArgs(argv) {
+  const out = { _: [] };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith('--')) {
+      const key = a.slice(2);
+      const next = argv[i + 1];
+      if (next && !next.startsWith('--')) {
+        out[key] = next;
+        i++;
+      } else {
+        out[key] = true;
+      }
+    } else if (a.startsWith('-') && a.length > 1) {
+      out[a.slice(1)] = true;
+    } else {
+      out._.push(a);
+    }
+  }
+  return out;
+}
+
+function main() {
+  const argv = process.argv.slice(2);
+  if (argv.length === 0 || argv[0] === '-h' || argv[0] === '--help' || argv[0] === 'help') {
+    process.stdout.write(help());
+    return;
+  }
+  if (argv[0] === '-v' || argv[0] === '--version' || argv[0] === 'version') {
+    cmdVersion();
+    return;
+  }
+
+  const cmd = argv[0];
+  const rest = argv.slice(1);
+  const args = parseArgs(rest);
+
+  switch (cmd) {
+    case 'methodology':
+      cmdMethodology();
+      break;
+    case 'docs':
+      cmdDocs(args._[0]);
+      break;
+    case 'list':
+      cmdList();
+      break;
+    case 'show':
+      cmdShow(args._[0]);
+      break;
+    case 'init':
+      cmdInit(args);
+      break;
+    default:
+      console.error(`未知命令：${cmd}\n`);
+      process.stdout.write(help());
+      process.exit(1);
+  }
+}
+
+main();
